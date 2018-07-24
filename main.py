@@ -56,22 +56,28 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
     :return: The Tensor for the last layer of output
     """
     # TODO: Implement function
-    conv_1x1 = tf.layers.conv2d(vgg_layer7_out, num_classes, 1, padding='SAME',
-                                kernal_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
-    output = tf.layers.conv2d_transpose(conv_1x1, num_classes, 4, 2, padding='SAME',
-                                        kernal_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+
+    # 1x1 conv
+    layer3_1x1 = tf.layers.conv2d(vgg_layer3_out, num_classes, 1, padding='SAME',
+                                  kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+    layer4_1x1 = tf.layers.conv2d(vgg_layer4_out, num_classes, 1, padding='SAME',
+                                  kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+    layer7_1x1 = tf.layers.conv2d(vgg_layer7_out, num_classes, 1, padding='SAME',
+                                  kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
 
     # scaling
-    layer3_out_scaled = tf.multiply(layer3_out, 0.0001)
-    layer4_out_scaled = tf.multiply(layer4_out, 0.01)
+    layer3_scaled = tf.multiply(layer3_1x1, 0.0001)
+    layer4_scaled = tf.multiply(layer4_1x1, 0.01)
 
     # skip connections
-    output = tf.add(output, layer4_out_scaled)
+    output = tf.layers.conv2d_transpose(layer7_1x1, num_classes, 4, 2, padding='SAME',
+                                        kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+    output = tf.add(output, layer4_scaled)
     output = tf.layers.conv2d_transpose(output, num_classes, 4, 2, padding='SAME',
-                                        kernal_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
-    output = tf.add(output, layer3_out_scaled)
+                                        kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+    output = tf.add(output, layer3_scaled)
     output = tf.layers.conv2d_transpose(output, num_classes, 16, 8, padding='SAME',
-                                        kernal_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+                                        kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
 
     return output
 tests.test_layers(layers)
@@ -88,12 +94,13 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
     """
     # TODO: Implement function
 
-    cross_entropy_loss = tf.reduce_mean(tf.nn.softmax_corss_entropy_with_logits(logits=nn_last_layer, labels=correct_label))
-    reg_loss = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
-    cross_entropy_loss = tf.reduce_mean(cross_entropy_loss + reg_loss)
+    logits = tf.reshape(nn_last_layer, (-1, num_classes))
+    cross_entropy_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=correct_label))
+    #reg_loss = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
+    #cross_entropy_loss = tf.reduce_mean(cross_entropy_loss + reg_loss)
     train_op = tf.train.AdamOptimizer(learning_rate = learning_rate).minimize(cross_entropy_loss)
 
-    return nn_last_layer, train_op, cross_entropy_loss
+    return logits, train_op, cross_entropy_loss
 tests.test_optimize(optimize)
 
 
@@ -114,9 +121,9 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
     """
     # TODO: Implement function
 
-    for epoch in epochs:
+    for epoch in range(epochs):
         for image, label in get_batches_fn(batch_size):
-            sess.run(train_op, feed_dict={x: image, y: label, keep_prob: keep_prob, learning_rate: learning_rate})
+            sess.run(train_op, feed_dict={input_image: image, correct_label: label, keep_prob: keep_prob, learning_rate: learning_rate})
 
     pass
 tests.test_train_nn(train_nn)
