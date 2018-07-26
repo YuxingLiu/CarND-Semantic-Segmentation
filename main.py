@@ -6,7 +6,6 @@ import warnings
 from distutils.version import LooseVersion
 import project_tests as tests
 
-
 # Check TensorFlow Version
 assert LooseVersion(tf.__version__) >= LooseVersion('1.0'), 'Please use TensorFlow version 1.0 or newer.  You are using {}'.format(tf.__version__)
 print('TensorFlow Version: {}'.format(tf.__version__))
@@ -59,11 +58,14 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
 
     # 1x1 conv
     layer3_1x1 = tf.layers.conv2d(vgg_layer3_out, num_classes, 1, padding='SAME',
-                                  kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+                                  kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3),
+                                  kernel_initializer=tf.truncated_normal_initializer(stddev=0.01))
     layer4_1x1 = tf.layers.conv2d(vgg_layer4_out, num_classes, 1, padding='SAME',
-                                  kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+                                  kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3),
+                                  kernel_initializer=tf.truncated_normal_initializer(stddev=0.01))
     layer7_1x1 = tf.layers.conv2d(vgg_layer7_out, num_classes, 1, padding='SAME',
-                                  kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+                                  kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3),
+                                  kernel_initializer=tf.truncated_normal_initializer(stddev=0.01))
 
     # scaling
     layer3_scaled = tf.multiply(layer3_1x1, 0.0001)
@@ -71,13 +73,16 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
 
     # skip connections
     output = tf.layers.conv2d_transpose(layer7_1x1, num_classes, 4, 2, padding='SAME', activation=tf.nn.relu,
-                                        kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+                                        kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3),
+                                        kernel_initializer=tf.truncated_normal_initializer(stddev=0.01))
     output = tf.add(output, layer4_scaled)
     output = tf.layers.conv2d_transpose(output, num_classes, 4, 2, padding='SAME', activation=tf.nn.relu,
-                                        kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+                                        kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3),
+                                        kernel_initializer=tf.truncated_normal_initializer(stddev=0.01))
     output = tf.add(output, layer3_scaled)
     output = tf.layers.conv2d_transpose(output, num_classes, 16, 8, padding='SAME', activation=tf.nn.relu,
-                                        kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+                                        kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3),
+                                        kernel_initializer=tf.truncated_normal_initializer(stddev=0.01))
     return output
 tests.test_layers(layers)
 
@@ -124,10 +129,12 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
     print()
 
     for epoch in range(epochs):
+        total_loss = 0.0
         for image, label in get_batches_fn(batch_size):
             sess.run(train_op, feed_dict={input_image: image, correct_label: label, keep_prob: 0.8, learning_rate: 0.0001})
+            total_loss += sess.run(cross_entropy_loss, feed_dict={input_image: image, correct_label: label, keep_prob: 1})
 
-        print('EPOCH{0:3}'.format(epoch+1))
+        print('EPOCH{0:3},      Training loss = {1:6.2f}'.format(epoch+1, total_loss))
     pass
 tests.test_train_nn(train_nn)
 
